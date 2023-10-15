@@ -63,7 +63,6 @@ class School:
         
         for teacher in self.teachers:
             if "Break" in teacher.placements:
-                #print(teacher.name, ' already has a break')
                 continue
 
             #First try to find availability in their own schedule
@@ -73,6 +72,26 @@ class School:
             if timesAligned:
                 teacher.setBreak(idealBreakTime(timesAligned))
 
+            if teacher.isLead():
+                sameClassroom = [classroom for classroom in self.classrooms if classroom.name == teacher.classroom][0]
+                #print(sameClassroom)
+                for otherTeacherName in sum(sameClassroom.placements, ()):
+                    otherTeacher = [teacher for teacher in self.teachers if teacher.name == otherTeacherName][0]
+                    if otherTeacher is None or not otherTeacher.hasAvailability() or teacher == otherTeacher:
+                        continue
+                    timesOtherTeacherAvailable = set(otherTeacher.whenAvailable())
+                    timesBothAreAligned = timesCouldHaveBreak.intersection(timesOtherTeacherAvailable)
+                    if timesBothAreAligned:
+                        breakTime = idealBreakTime(timesBothAreAligned)
+                        otherTeacher.assignClassroom(teacher.getClassroom(breakTime), breakTime)
+                        #print("Taking ", teacher.name, " out of ", teacher.getClassroom(breakTime), " at ", breakTime, " so ", otherTeacher, " can cover their break")
+                        teacher.setBreak(breakTime)
+                        if lastRequirement and self.hasValidSchedule():
+                            return True
+                        break
+            if "Break" in teacher.placements:
+                continue      
+            
             for otherTeacher in self.floatsByAvailability():
                 if not otherTeacher.hasAvailability() or teacher == otherTeacher:
                     continue
@@ -80,9 +99,12 @@ class School:
                 timesBothAreAligned = timesCouldHaveBreak.intersection(timesOtherTeacherAvailable)
                 if timesBothAreAligned:
                     breakTime = idealBreakTime(timesBothAreAligned)
-                    otherTeacher.assignClassroom(teacher.getClassroom(breakTime), breakTime)
+                    className = teacher.getClassroom(breakTime)
+                    otherTeacher.assignClassroom(className, breakTime)
                     #print("Taking ", teacher.name, " out of ", teacher.getClassroom(breakTime), " at ", breakTime, " so ", otherTeacher, " can cover their break")
                     teacher.setBreak(breakTime)
+                    classroom = [classroom for classroom in self.classrooms if classroom.name == className][0]
+                    classroom.swapTeachers(otherTeacher.name, teacher.name, breakTime)
                     if lastRequirement and self.hasValidSchedule():
                         return True
                     break
@@ -91,12 +113,8 @@ class School:
     def leadTeachersByClass(self, classroom):
         return [teacher for teacher in self.teachers if teacher.isLead()]
 
-    def floatsByAvailability(self):
-        x = sorted([teacher for teacher in self.teachers if teacher.isFloat()], key=lambda teacher: sum(teacher.availability), reverse=True)
-        for teacher in self.teachers:
-            if teacher.isFloat():
-                print(teacher.name, sum(teacher.availability))
-        return x
+    def floatsByAvailability(self): #can place floats who are already in that classroom first
+        return sorted([teacher for teacher in self.teachers if teacher.isFloat()], key=lambda teacher: sum(teacher.availability), reverse=True)
 
     def noSolutionPossible(self):
         print("No Solution Possible")
@@ -178,12 +196,15 @@ class Classroom:
             self.placements[time] = self.placements[time] + tuple([teacher])
             self.fullyStaffed[time] = True
 
+    def swapTeachers(self, newTeacher, oldTeacher, time):
+        self.placements[time] = tuple(x for x in self.placements[time] if x != oldTeacher) + tuple([newTeacher])
+
     def __str__(self):
         return self.name + "'s schedule: " + ", ".join([str(p) for p in self.placements])
 
 def setup():
     leadTeacherNames = ["Abby", "Beatrice", "Charlotte", "Danielle"]
-    leadTeacherClassrooms = ["Infants", "Toddlers", "Toddlers", "Toddlers"]
+    leadTeacherClassrooms = ["Infants", "Infants", "Toddlers", "Toddlers"]
     leadTeacherInfo = zip(leadTeacherNames, leadTeacherClassrooms)
     teachers = [LeadTeacher(name, classroom) for name, classroom in leadTeacherInfo]
 
