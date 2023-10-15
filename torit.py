@@ -2,32 +2,61 @@ class School:
     def __init__(self, teachers=[], classrooms=[]):
         self.teachers = teachers
         self.classrooms = classrooms
+        self.reasonsInvalid = []
 
-    def hasInvalidSchedule(self):
-        alwaysStaffed = all([classroom.is_staffed() for classroom in self.classrooms])
-        singleStaffed = self.isSingleStaffed()
-        return not (alwaysStaffed and singleStaffed)
+    def hasValidSchedule(self):
+        def allTeachersInOnePlaceAtOnce():
+            allPlacements = [classroom.placements for classroom in self.classrooms]
+            hourlyPlacements = [list(x) for x in zip(*allPlacements)]
+            def noOneDoubleBooked(hourOfPlacements):
+                seen = set()
+                nonNonePlacements = [x for x in sum(hourOfPlacements, ()) if x is not None]
+                return not any(person in seen or seen.add(person) for person in nonNonePlacements)
+            return all([noOneDoubleBooked(hour) for hour in hourlyPlacements])
 
-    def isSingleStaffed(self):
-        allPlacements = [classroom.placements for classroom in self.classrooms]
-        hourlyPlacements = [list(x) for x in zip(*allPlacements)]
-        def noOneDoubleBooked(hourOfPlacements):
-            seen = set()
-            nonNonePlacements = [x for x in sum(hourOfPlacements, ()) if x is not None]
-            return not any(person in seen or seen.add(person) for person in nonNonePlacements)
-        return all([noOneDoubleBooked(hour) for hour in hourlyPlacements])
+        def allTeachersHaveBreaks():
+            return all(["Break" in teacher.placements for teacher in self.teachers])
+            
+        def allClassroomsAlwaysStaffed():
+            return all([classroom.isStaffed() for classroom in self.classrooms])
 
+        requirements = [allClassroomsAlwaysStaffed(), allTeachersInOnePlaceAtOnce(), allTeachersHaveBreaks()]
+        
+        if not all(requirements):
+            self.reasonsInvalid = [i for i, x in enumerate(requirements) if not x]
+            
+        return all(requirements)
     
     def teachersHaveNoAvailability(self):
-        return not any([teacher.has_availability for teacher in self.teachers])
+        return not any([teacher.hasAvailability for teacher in self.teachers])
 
-    def assignTeacherToClassroom(self, teacher, classroom, times):
-        for time in times:
-            teacher.assign_classroom(classroom.name, time)
-            classroom.assign_teacher(teacher.name, time)
+    def staffClassrooms(self):
+        for classroom in self.classrooms:
+            if classroom.isStaffed():
+                continue
+            
+            timesUnstaffed = classroom.whenUnstaffed()
+            for teacher in self.leadTeachersByClass(classroom):
+                if not teacher.hasAvailability():
+                    continue
+                
+                timesAvailable = teacher.whenAvailable()
+                timesAligned = set(timesUnstaffed).intersection(set(timesAvailable))
+                self.assignTeacherToClassroom(teacher, classroom, timesAligned)
+
+                if self.hasValidSchedule():
+                    return True
+
+                if classroom.isStaffed():
+                    break
 
     def leadTeachersByClass(self, classroom):
         return [teacher for teacher in self.teachers if teacher.isLead()]
+
+    def assignTeacherToClassroom(self, teacher, classroom, times):
+        for time in times:
+            teacher.assignClassroom(classroom.name, time)
+            classroom.assignTeacher(teacher.name, time)
 
     def noSolutionPossible(self):
         print("No Solution Possible")
@@ -46,13 +75,13 @@ class Teacher:
         self.availability = [True, True, True, True, True, True, True, True]
         self.placements = [None, None, None, None, None, None, None, None]
 
-    def has_availability(self):
+    def hasAvailability(self):
         return any(self.availability)
 
-    def when_available(self):
+    def whenAvailable(self):
         return [i for i in range(len(self.availability)) if self.availability[i]]
 
-    def assign_classroom(self, classroom, time):
+    def assignClassroom(self, classroom, time):
         self.availability[time] = False
         self.placements[time] = classroom
 
@@ -79,21 +108,21 @@ class Float(Teacher):
 class Classroom:
     def __init__(self, name):
         self.name = name
-        self.fully_staffed = [False, False, False, False, False, False, False, False]
+        self.fullyStaffed = [False, False, False, False, False, False, False, False]
         self.placements = [tuple([None]) for i in range(8)]
 
-    def is_staffed(self):
-        return all(self.fully_staffed)
+    def isStaffed(self):
+        return all(self.fullyStaffed)
 
-    def when_unstaffed(self):
-        return [i for i in range(len(self.fully_staffed)) if not self.fully_staffed[i]]
+    def whenUnstaffed(self):
+        return [i for i in range(len(self.fullyStaffed)) if not self.fullyStaffed[i]]
 
-    def assign_teacher(self, teacher, time):
+    def assignTeacher(self, teacher, time):
         if self.placements[time] == tuple([None]):
             self.placements[time] = tuple([teacher])
         else:
             self.placements[time] = self.placements[time] + tuple([teacher])
-            self.fully_staffed[time] = True
+            self.fullyStaffed[time] = True
 
     def __str__(self):
         return self.name + "'s schedule: " + ", ".join([str(p) for p in self.placements])
@@ -107,36 +136,27 @@ def setup():
     floatNames = ["Emilia", "Francisca"]    
     teachers.extend([Float(name) for name in floatNames])
 
-    classroom_names = ["Infants", "Toddlers"]
-    classrooms = [Classroom(name) for name in classroom_names]
+    classroomNames = ["Infants", "Toddlers"]
+    classrooms = [Classroom(name) for name in classroomNames]
 
     return School(teachers, classrooms)
 
 
 def main():
     torit = setup()
-    while torit.hasInvalidSchedule():
+    while not torit.hasValidSchedule():
         if torit.teachersHaveNoAvailability():
             torit.noSolutionPossible()
             break
-        for classroom in torit.classrooms:
-            if classroom.is_staffed():
-                continue
-            
-            times_unstaffed = classroom.when_unstaffed()
-            for teacher in torit.leadTeachersByClass(classroom):
-                if not teacher.has_availability():
-                    continue
-                
-                times_available = teacher.when_available()
-                times_aligned = set(times_unstaffed).intersection(set(times_available))
-                torit.assignTeacherToClassroom(teacher, classroom, times_aligned)
 
-                if not torit.hasInvalidSchedule():
-                    return torit
+        if 0 in torit.reasonsInvalid:
+            if torit.staffClassrooms():
+                return torit
 
-                if classroom.is_staffed():
-                    break
+        if 2 in torit.reasonsInvalid:
+            print("yea")
+            return torit
+        
                 
 
 torit = main()
