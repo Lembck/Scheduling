@@ -73,7 +73,7 @@ class School:
             if timesAligned:
                 teacher.setBreak(idealBreakTime(timesAligned))
 
-            for otherTeacher in self.teachers:
+            for otherTeacher in self.floatsByAvailability():
                 if not otherTeacher.hasAvailability() or teacher == otherTeacher:
                     continue
                 timesOtherTeacherAvailable = set(otherTeacher.whenAvailable())
@@ -90,6 +90,13 @@ class School:
 
     def leadTeachersByClass(self, classroom):
         return [teacher for teacher in self.teachers if teacher.isLead()]
+
+    def floatsByAvailability(self):
+        x = sorted([teacher for teacher in self.teachers if teacher.isFloat()], key=lambda teacher: sum(teacher.availability), reverse=True)
+        for teacher in self.teachers:
+            if teacher.isFloat():
+                print(teacher.name, sum(teacher.availability))
+        return x
 
     def noSolutionPossible(self):
         print("No Solution Possible")
@@ -133,6 +140,9 @@ class Teacher:
     def isLead(self):
         return False
 
+    def isFloat(self):
+        return False
+
 class LeadTeacher(Teacher):
     def __init__(self, name, classroom):
         Teacher.__init__(self, name)
@@ -145,7 +155,9 @@ class AssitantTeacher(Teacher):
     pass
 
 class Float(Teacher):
-    pass
+    def isFloat(self):
+        return True
+    
 
 class Classroom:
     def __init__(self, name):
