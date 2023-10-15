@@ -1,3 +1,5 @@
+TIME_PERIODS = 8
+
 class School:
     def __init__(self, teachers=[], classrooms=[]):
         self.teachers = teachers
@@ -30,33 +32,64 @@ class School:
     def teachersHaveNoAvailability(self):
         return not any([teacher.hasAvailability for teacher in self.teachers])
 
-    def staffClassrooms(self):
+    def staffClassrooms(self, lastRequirement = False):
+        def assignTeacherToClassroom(teacher, classroom, times):
+            for time in times:
+                teacher.assignClassroom(classroom.name, time)
+                classroom.assignTeacher(teacher.name, time)
+                
         for classroom in self.classrooms:
             if classroom.isStaffed():
                 continue
             
-            timesUnstaffed = classroom.whenUnstaffed()
+            timesUnstaffed = set(classroom.whenUnstaffed())
             for teacher in self.leadTeachersByClass(classroom):
                 if not teacher.hasAvailability():
                     continue
                 
-                timesAvailable = teacher.whenAvailable()
-                timesAligned = set(timesUnstaffed).intersection(set(timesAvailable))
-                self.assignTeacherToClassroom(teacher, classroom, timesAligned)
+                timesAvailable = set(teacher.whenAvailable())
+                timesAligned = timesUnstaffed.intersection(timesAvailable)
+                assignTeacherToClassroom(teacher, classroom, timesAligned)
 
-                if self.hasValidSchedule():
+                if lastRequirement and self.hasValidSchedule():
                     return True
 
                 if classroom.isStaffed():
                     break
 
+    def giveBreaks(self, lastRequirement = False):
+        def idealBreakTime(possibleBreakTimes):
+            return sorted(possibleBreakTimes, key = lambda time: abs((TIME_PERIODS-1)/2-time)).pop(0)
+        
+        for teacher in self.teachers:
+            if "Break" in teacher.placements:
+                #print(teacher.name, ' already has a break')
+                continue
+
+            #First try to find availability in their own schedule
+            timesCouldHaveBreak = set(teacher.whenBreakable())
+            timesAvailable = set(teacher.whenAvailable())
+            timesAligned = timesCouldHaveBreak.intersection(timesAvailable)
+            if timesAligned:
+                teacher.setBreak(idealBreakTime(timesAligned))
+
+            for otherTeacher in self.teachers:
+                if not otherTeacher.hasAvailability() or teacher == otherTeacher:
+                    continue
+                timesOtherTeacherAvailable = set(otherTeacher.whenAvailable())
+                timesBothAreAligned = timesCouldHaveBreak.intersection(timesOtherTeacherAvailable)
+                if timesBothAreAligned:
+                    breakTime = idealBreakTime(timesBothAreAligned)
+                    otherTeacher.assignClassroom(teacher.getClassroom(breakTime), breakTime)
+                    #print("Taking ", teacher.name, " out of ", teacher.getClassroom(breakTime), " at ", breakTime, " so ", otherTeacher, " can cover their break")
+                    teacher.setBreak(breakTime)
+                    if lastRequirement and self.hasValidSchedule():
+                        return True
+                    break
+                
+
     def leadTeachersByClass(self, classroom):
         return [teacher for teacher in self.teachers if teacher.isLead()]
-
-    def assignTeacherToClassroom(self, teacher, classroom, times):
-        for time in times:
-            teacher.assignClassroom(classroom.name, time)
-            classroom.assignTeacher(teacher.name, time)
 
     def noSolutionPossible(self):
         print("No Solution Possible")
@@ -67,7 +100,7 @@ class School:
         print(self)
 
     def __str__(self):
-        return "\n".join([teacher.__str__() for teacher in self.teachers]) + "\n" + "-" * 30 + "\n" + "\n".join([classroom.__str__() for classroom in self.classrooms])
+        return "=" * 60 + "\n" + "\n".join([teacher.__str__() for teacher in self.teachers]) + "\n" + "-" * 30 + "\n" + "\n".join([classroom.__str__() for classroom in self.classrooms]) + "\n" + "=" * 60
 
 class Teacher:
     def __init__(self, name):
@@ -79,7 +112,16 @@ class Teacher:
         return any(self.availability)
 
     def whenAvailable(self):
-        return [i for i in range(len(self.availability)) if self.availability[i]]
+        return [i for i in range(TIME_PERIODS) if self.availability[i]]
+
+    def whenBreakable(self):
+        return [i for i in range(2, TIME_PERIODS-2)]
+
+    def setBreak(self, time):
+        self.assignClassroom("Break", time)
+
+    def getClassroom(self, time):
+        return self.placements[time]
 
     def assignClassroom(self, classroom, time):
         self.availability[time] = False
@@ -145,19 +187,33 @@ def setup():
 def main():
     torit = setup()
     while not torit.hasValidSchedule():
+        print(torit.reasonsInvalid)
+        print(torit)
         if torit.teachersHaveNoAvailability():
             torit.noSolutionPossible()
+            print("here?")
             break
 
+        lastRequirement = len(torit.reasonsInvalid) == 1
+
         if 0 in torit.reasonsInvalid:
-            if torit.staffClassrooms():
+            if torit.staffClassrooms(lastRequirement):
                 return torit
+            
+        torit.hasValidSchedule()
+        print(torit.reasonsInvalid)
+        lastRequirement = len(torit.reasonsInvalid) == 1
 
         if 2 in torit.reasonsInvalid:
-            print("yea")
-            return torit
+            torit.giveBreaks()
+            #print(lastRequirement)
+            #if torit.giveBreaks(lastRequirement):
+            #    return torit
         
                 
 
-torit = main()
+
+torit = setup()
+torit.staffClassrooms()
+torit.giveBreaks()
 torit.complete()
