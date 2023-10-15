@@ -52,19 +52,22 @@ class Teacher:
 class Classroom:
     def __init__(self, name, age):
         self.name = name
-        self.staffed = [False, False, False, False, False, False, False, False]
+        self.fully_staffed = [False, False, False, False, False, False, False, False]
         self.placements = [None, None, None, None, None, None, None, None]
         self.age = age
 
     def is_staffed(self):
-        return all(self.staffed)
+        return all(self.fully_staffed)
 
     def when_unstaffed(self):
-        return [i for i in range(len(self.staffed)) if not self.staffed[i]]
+        return [i for i in range(len(self.fully_staffed)) if not self.fully_staffed[i]]
 
     def assign_teacher(self, teacher, time):
-        self.staffed[time] = True
-        self.placements[time] = teacher
+        if self.placements[time] == None:
+            self.placements[time] = teacher
+        else:
+            self.placements[time] = (teacher, self.placements[time])
+            self.fully_staffed[time] = True
 
     def __str__(self):
         return self.name + "'s schedule: " + ", ".join([str(p) for p in self.placements])
@@ -75,8 +78,8 @@ def main():
     teacher_age_preferences = [6, 1, 4, 2]
     teachers = [Teacher(name, age) for name, age in zip(teacher_names, teacher_age_preferences)]
 
-    classroom_names = ["Infants", "Toddlers", "Pre-school", "Elementary"]
-    classroom_ages = [1, 2, 4, 6]
+    classroom_names = ["Infants", "Toddlers"]
+    classroom_ages = [1, 2]
     classrooms = [Classroom(name, age) for name, age in zip(classroom_names, classroom_ages)]
 
     torit = School(teachers, classrooms)
