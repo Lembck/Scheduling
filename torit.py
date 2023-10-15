@@ -15,6 +15,9 @@ class School:
             teacher.assign_classroom(classroom.name, time)
             classroom.assign_teacher(teacher.name, time)
 
+    def teachersByAgePreference(self, age):
+        return sorted(self.teachers, key=lambda teacher: abs(teacher.age_preference - age))
+
     def noSolutionPossible(self):
         print("No Solution Possible")
         print(self)
@@ -24,13 +27,14 @@ class School:
         print(self)
 
     def __str__(self):
-        return "\n".join([teacher.__str__() for teacher in self.teachers]) + "\n" + "\n".join([classroom.__str__() for classroom in self.classrooms])
+        return "\n".join([teacher.__str__() for teacher in self.teachers]) + "\n" + "-" * 30 + "\n" + "\n".join([classroom.__str__() for classroom in self.classrooms])
 
 class Teacher:
-    def __init__(self, name):
+    def __init__(self, name, age_preference):
         self.name = name
         self.availability = [True, True, True, True, True, True, True, True]
         self.placements = [None, None, None, None, None, None, None, None]
+        self.age_preference = age_preference
 
     def has_availability(self):
         return any(self.availability)
@@ -46,10 +50,11 @@ class Teacher:
         return self.name + "'s schedule: " + ", ".join([str(p) for p in self.placements])
 
 class Classroom:
-    def __init__(self, name):
+    def __init__(self, name, age):
         self.name = name
         self.staffed = [False, False, False, False, False, False, False, False]
         self.placements = [None, None, None, None, None, None, None, None]
+        self.age = age
 
     def is_staffed(self):
         return all(self.staffed)
@@ -67,8 +72,14 @@ class Classroom:
 
 def main():
     teacher_names = ["Abby", "Beatrice", "Charlotte", "Danielle"]
+    teacher_age_preferences = [6, 1, 4, 2]
+    teachers = [Teacher(name, age) for name, age in zip(teacher_names, teacher_age_preferences)]
+
     classroom_names = ["Infants", "Toddlers", "Pre-school", "Elementary"]
-    torit = School([Teacher(name) for name in teacher_names], [Classroom(name) for name in classroom_names])
+    classroom_ages = [1, 2, 4, 6]
+    classrooms = [Classroom(name, age) for name, age in zip(classroom_names, classroom_ages)]
+
+    torit = School(teachers, classrooms)
     
     while torit.hasInvalidSchedule():
         if torit.teachersHaveNoAvailability():
@@ -79,8 +90,7 @@ def main():
                 continue
             
             times_unstaffed = classroom.when_unstaffed()
-            
-            for teacher in torit.teachers:
+            for teacher in torit.teachersByAgePreference(classroom.age):
                 if not teacher.has_availability():
                     continue
                 
