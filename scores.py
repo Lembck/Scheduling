@@ -1,26 +1,81 @@
-class School:
-    def __init__(self, teacher, classroom):
-        self.teacher = teacher
-        self.classroom = classroom
+RestrictionAlreadySolved =  " was already solved"
+RestrictionFailed = " Failed: "
+RestrictionNowSolved = " is now solved"
+RestrictionCannotBeSolved = " cannot be solved in this state"
 
-    def checkRestrictionOne(self):
-        if self.classroom.isStaffed:
-            return 1
-        return 0
+R1FailureMessage = "The following classrooms were unstaffed: "
+
+class Restrictions:
+    AllClassesFullyStaffed = 1
+
+class Log:
+    def __init__(self):
+        self.log = []
+        self.failureDetails = {"R1" : None}
+        self.failureMessages = {"R1" : R1FailureMessage}
+    def add(self, *msg):
+        self.log.extend(msg)
+    def print(self):
+        print("\n".join(self.log))
+    def assigningTeacherToClassroom(self, teacher, classroom):
+        self.add("Assigning " + teacher + " to " + classroom)
+    def restrictionAlreadySolved(self, restriction):
+        self.add(restriction + RestrictionAlreadySolved)
+    def restrictionFailed(self, restriction):
+        message = self.failureMessages[restriction] + self.failureDetails[restriction]
+        self.add(restriction + RestrictionFailed + message)
+    def restrictionNowSolved(self, restriction):
+        self.add(restriction + RestrictionNowSolved)
+    def restrictionCannotBeSolved(self, restriction):
+        self.add(restriction + RestrictionCannotBeSolved)
+    def updateFailureDetails(self, restriction, details):
+        self.failureDetails[restriction] = details
+    
+
+class School:
+    def __init__(self, teacher, classrooms):
+        self.teacher = teacher
+        self.classrooms = classrooms
+        self.log = Log()
+
+    def restrictionOnePassed(self):
+        unstaffedClassrooms = []
+        def restrictionOneFailed():
+            return len(unstaffedClassrooms) > 0
+        
+        for classroom in self.classrooms:
+            if not classroom.isStaffed():
+                unstaffedClassrooms.append(classroom.name)
+        if restrictionOneFailed():
+            self.log.updateFailureDetails("R1", ", ".join(unstaffedClassrooms))
+            return False
 
     def solveRestrictionOne(self):
-        if not self.classroom.isStaffed() and self.teacher.isAvailable():
-            self.classroom.staffClassroom()
-            self.teacher.assignTeacher()
-            return True
-        return False
+        for classroom in self.classrooms:
+            if classroom.isStaffed():
+                continue
+            if self.teacher.isAvailable():
+                self.log.assigningTeacherToClassroom(self.teacher.name, classroom.name)
+                classroom.staffClassroom()
+                self.teacher.assignTeacher()
+            else:
+                return False
+        return True
 
     def solveSchedule(self):
-        #check if already solved
-        if self.checkRestrictionOne() == 1:
+        if self.restrictionOnePassed():
+            self.log.restrictionAlreadySolved("R1")
+            return True
+        self.log.restrictionFailed("R1")
+        if self.solveRestrictionOne():
+            self.log.restrictionNowSolved("R1")
             return True
         else:
-            return self.solveRestrictionOne()
+            self.log.restrictionCannotBeSolved("R1")
+
+    def printLog(self):
+        self.log.print()
+            
 
 class Teacher:
     def __init__(self, name):
@@ -46,10 +101,10 @@ class Classroom:
 
 teacherBob = Teacher("Bob")
 classroomPreK = Classroom("PreK")
+classroomK = Classroom("K")
+classrooms = [classroomPreK]
 
-montessori = School(teacherBob, classroomPreK)
+montessori = School(teacherBob, classrooms)
 
-print(montessori.solveSchedule())
-
-class Restrictions:
-    AllClassesFullyStaffed = 1
+montessori.solveSchedule()
+montessori.printLog()
