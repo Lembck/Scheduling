@@ -1,4 +1,5 @@
-TIME_PERIODS = 8
+from classroom import *
+from teacher import *
 
 class School:
     def __init__(self, teachers=[], classrooms=[]):
@@ -72,6 +73,9 @@ class School:
             if timesAligned:
                 teacher.setBreak(idealBreakTime(timesAligned))
 
+            if "Break" in teacher.placements:
+                continue  
+
             if teacher.isLead():
                 sameClassroom = [classroom for classroom in self.classrooms if classroom.name == teacher.classroom][0]
                 #print(sameClassroom)
@@ -127,126 +131,24 @@ class School:
     def __str__(self):
         return "=" * 60 + "\n" + "\n".join([teacher.__str__() for teacher in self.teachers]) + "\n" + "-" * 30 + "\n" + "\n".join([classroom.__str__() for classroom in self.classrooms]) + "\n" + "=" * 60
 
-class Teacher:
-    def __init__(self, name):
-        self.name = name
-        self.availability = [True, True, True, True, True, True, True, True]
-        self.placements = [None, None, None, None, None, None, None, None]
-
-    def hasAvailability(self):
-        return any(self.availability)
-
-    def whenAvailable(self):
-        return [i for i in range(TIME_PERIODS) if self.availability[i]]
-
-    def whenBreakable(self):
-        return [i for i in range(2, TIME_PERIODS-2)]
-
-    def setBreak(self, time):
-        self.assignClassroom("Break", time)
-
-    def getClassroom(self, time):
-        return self.placements[time]
-
-    def assignClassroom(self, classroom, time):
-        self.availability[time] = False
-        self.placements[time] = classroom
-
-    def __str__(self):
-        return self.name + "'s schedule: " + ", ".join([str(p) for p in self.placements])
-
-    def isLead(self):
-        return False
-
-    def isFloat(self):
-        return False
-
-class LeadTeacher(Teacher):
-    def __init__(self, name, classroom):
-        Teacher.__init__(self, name)
-        self.classroom = classroom
-
-    def isLead(self):
-        return True
-
-class AssitantTeacher(Teacher):
-    pass
-
-class Float(Teacher):
-    def isFloat(self):
-        return True
-    
-
-class Classroom:
-    def __init__(self, name):
-        self.name = name
-        self.fullyStaffed = [False, False, False, False, False, False, False, False]
-        self.placements = [tuple([None]) for i in range(8)]
-
-    def isStaffed(self):
-        return all(self.fullyStaffed)
-
-    def whenUnstaffed(self):
-        return [i for i in range(len(self.fullyStaffed)) if not self.fullyStaffed[i]]
-
-    def assignTeacher(self, teacher, time):
-        if self.placements[time] == tuple([None]):
-            self.placements[time] = tuple([teacher])
-        else:
-            self.placements[time] = self.placements[time] + tuple([teacher])
-            self.fullyStaffed[time] = True
-
-    def swapTeachers(self, newTeacher, oldTeacher, time):
-        self.placements[time] = tuple(x for x in self.placements[time] if x != oldTeacher) + tuple([newTeacher])
-
-    def __str__(self):
-        return self.name + "'s schedule: " + ", ".join([str(p) for p in self.placements])
 
 def setup():
-    leadTeacherNames = ["Abby", "Beatrice", "Charlotte", "Danielle"]
-    leadTeacherClassrooms = ["Infants", "Infants", "Toddlers", "Toddlers"]
+    leadTeacherNames = ["Abby", "Beatrice", "Charlotte", "Danielle", "Emilia", "Francisca"]
+    leadTeacherClassrooms = ["Infants", "Infants", "Toddlers", "Toddlers", "Pre-Primary", "Pre-Primary"]
     leadTeacherInfo = zip(leadTeacherNames, leadTeacherClassrooms)
     teachers = [LeadTeacher(name, classroom) for name, classroom in leadTeacherInfo]
 
-    floatNames = ["Emilia", "Francisca"]    
+    floatNames = ["Gregorica", "Hallie"]    
     teachers.extend([Float(name) for name in floatNames])
 
-    classroomNames = ["Infants", "Toddlers"]
+    classroomNames = ["Infants", "Toddlers", "Pre-Primary"]
     classrooms = [Classroom(name) for name in classroomNames]
 
     return School(teachers, classrooms)
 
 
-def main():
-    torit = setup()
-    while not torit.hasValidSchedule():
-        print(torit.reasonsInvalid)
-        print(torit)
-        if torit.teachersHaveNoAvailability():
-            torit.noSolutionPossible()
-            print("here?")
-            break
-
-        lastRequirement = len(torit.reasonsInvalid) == 1
-
-        if 0 in torit.reasonsInvalid:
-            if torit.staffClassrooms(lastRequirement):
-                return torit
-            
-        torit.hasValidSchedule()
-        print(torit.reasonsInvalid)
-        lastRequirement = len(torit.reasonsInvalid) == 1
-
-        if 2 in torit.reasonsInvalid:
-            torit.giveBreaks()
-            #print(lastRequirement)
-            #if torit.giveBreaks(lastRequirement):
-            #    return torit
-        
-                
-
-
 torit = setup()
 torit.staffClassrooms()
 torit.giveBreaks()
-torit.complete()
+if torit.hasValidSchedule():
+    torit.complete()
