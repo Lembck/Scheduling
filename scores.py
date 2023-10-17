@@ -1,103 +1,75 @@
-RestrictionAlreadySolved =  " was already solved"
-RestrictionFailed = " Failed: "
-RestrictionNowSolved = " is now solved"
-RestrictionCannotBeSolved = " cannot be solved in this state"
-
-R1FailureMessage = "The following classrooms were unstaffed: "
-
-class Restrictions:
-    AllClassesFullyStaffed = 1
-
-class Log:
-    def __init__(self):
-        self.log = []
-        self.failureDetails = {"R1" : None}
-        self.failureMessages = {"R1" : R1FailureMessage}
-    def add(self, *msg):
-        self.log.extend(msg)
-    def print(self):
-        print("\n".join(self.log))
-    def assigningTeacherToClassroom(self, teacher, classroom):
-        self.add("Assigning " + teacher + " to " + classroom)
-    def restrictionAlreadySolved(self, restriction):
-        self.add(restriction + RestrictionAlreadySolved)
-    def restrictionFailed(self, restriction):
-        message = self.failureMessages[restriction] + self.failureDetails[restriction]
-        self.add(restriction + RestrictionFailed + message)
-    def restrictionNowSolved(self, restriction):
-        self.add(restriction + RestrictionNowSolved)
-    def restrictionCannotBeSolved(self, restriction):
-        self.add(restriction + RestrictionCannotBeSolved)
-    def updateFailureDetails(self, restriction, details):
-        self.failureDetails[restriction] = details
-    
-
 class School:
     def __init__(self, teacher, classrooms):
         self.teacher = teacher
         self.classrooms = classrooms
         self.log = Log()
+        self.notSolvedYet = True
 
-    def restrictionOnePassed(self):
-        unstaffedClassrooms = []
-        def restrictionOneFailed():
-            return len(unstaffedClassrooms) > 0
-        
-        for classroom in self.classrooms:
-            if not classroom.isStaffed():
-                unstaffedClassrooms.append(classroom.name)
-        if restrictionOneFailed():
-            self.log.updateFailureDetails("R1", ", ".join(unstaffedClassrooms))
-            return False
+    def solveSchedule():
+        while self.notSolvedYet:
+            #classrooms need to be staffed
+            if not all(classroom.isStaffed for classroom in classrooms):
+                self.staffClassrooms()
+                    
+            #teachers need to have a break
 
-    def solveRestrictionOne(self):
-        for classroom in self.classrooms:
-            if classroom.isStaffed():
+    def staffClassrooms():
+        def assignTeacherToClassroom(teacher, classroom, times):
+            teacher.assignTeacher(classroom, times)
+            classroom.staffClassroom(teacher, times)
+
+        for classroom in classrooms:
+            if classroom.isStaffed:
                 continue
-            if self.teacher.isAvailable():
-                self.log.assigningTeacherToClassroom(self.teacher.name, classroom.name)
-                classroom.staffClassroom()
-                self.teacher.assignTeacher()
-            else:
-                return False
-        return True
-
-    def solveSchedule(self):
-        if self.restrictionOnePassed():
-            self.log.restrictionAlreadySolved("R1")
-            return True
-        self.log.restrictionFailed("R1")
-        if self.solveRestrictionOne():
-            self.log.restrictionNowSolved("R1")
-            return True
-        else:
-            self.log.restrictionCannotBeSolved("R1")
+            
+            timesAvailable = set(teacher.whenAvailable())
+            timesUnstaffed = set(classroom.whenUnstaffed())
+            timesAligned = timesUnstaffed.intersection(timesAvailable)
+            assignTeacherToClassroom(teacher, classroom, timesAligned)
 
     def printLog(self):
         self.log.print()
-            
+        
 
 class Teacher:
     def __init__(self, name):
         self.name = name
         self.available = True
+        self.availability = [None] * 30
 
-    def assignTeacher(self):
-        self.available = False
+    def assignTeacher(self, classroom, times):
+        for time in times:
+            self.availability[time] = classroom
+        self.setAvailable()
+
+    def setAvailable(self):
+        self.available = not [slot for slot in self.availability if slot is not None]
 
     def isAvailable(self):
         return self.available
+
+    def whenAvailable(self):
+        return [i for i in range(30) if self.availability[i]]
 
 class Classroom:
     def __init__(self, name):
         self.name = name
         self.staffed = False
+        self.placements = [None] * 30 #7:30am - 3:00pm
+
+    def percentageStaffed(self):
+        def calculatePercentage():
+            return len(filter(lambda x: x != None , self.placements)) / len(self.placements)
+        return self.staffed or calculatePercentage()
         
     def staffClassroom(self):
         self.staffed = True
 
     def isStaffed(self):
         return self.staffed
+
+    def whenUnstaffed(self):
+        return [i for i in range(30) if self.placements[i] == None]
 
 teacherBob = Teacher("Bob")
 classroomPreK = Classroom("PreK")
