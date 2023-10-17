@@ -16,18 +16,28 @@ class School:
     def solve(self):
         while not self.solved():
             if not all(classroom.isFullyStaffed() for classroom in self.classrooms):
+                print("Staffing Classrooms")
                 if all(teacher.fullyBooked() for teacher in self.teachers):
                     print("Not enough people")
                     break
-                print("staffing classrooms")
+                
+                for c in self.classrooms:
+                    if not c.isFullyStaffed():
+                        print(c, "is not fully staffed:", c.percentageStaffed()*100, "%")
+                        
                 self.staffClassrooms()
                 self.staffClassrooms()
-                print(list(zip(self.placements, self.scores)))
+                
             if not all(teacher.hasBreak() for teacher in self.teachers):
                 print("breaking teachers")
+                print(", ".join(str(t) for t in self.teachers if not t.hasBreak()), "don't have breaks")
                 self.breakTeachers()
+            else:
+                print("All teachers have breaks")
 
-        #print(list(zip(self.placements, self.scores)))
+        print("Solved")
+        print(self.placements)
+        print(max(self.scores))
 
     def createPlacement(self, teacher, location, timeslot):
         self.placements.append(Placement(teacher, location, timeslot))
@@ -51,38 +61,48 @@ class School:
     def breakTeachers(self):
         print("Breaking teachers")
         def removePlacement(teacher, location, timeslot):
+            #print("removing", teacher, "from", location, "at", timeslot)
             toBeRemoved = Placement(teacher, location, timeslot)
-            print("a", len(self.placements))
-            self.placements = [p for p in self.placements if p != toBeRemoved]
-            print("b", len(self.placements))
+            if toBeRemoved in self.placements:
+                self.placements = [p for p in self.placements if p != toBeRemoved]
+                teacher.unassign(location, timeslot)
+                if location.isClassroom():
+                    location.unstaff(teacher, timeslot)
+                #print("removed", teacher, "from", location, "at", timeslot)
 
         def onBreak(teacher, timeslot):
             self.createPlacement(teacher, Location("Break"), timeslot)
+
+        def findBreakTimeslots(timeslots, teachers, timeslot, teacher):
+            for otherTeacher in self.teachers:
+                if otherTeacher.isAvailableAt(timeslot):
+                    #print(otherTeacher, "can cover at", timeslot)
+                    timeslots.append(timeslot)
+                    teachers.append(otherTeacher)
+                    return timeslots
+            return []
         
         for teacher in self.teachers:
+            #print("Trying to find a break for", teacher)
             if teacher.hasBreak():
+                #print(teacher, "already had a break")
                 continue
-            timeslots = []
-            teachers = []
+            breakTimeslots = []
+            coveringTeachers = []
             for timeslot in range(30):
-                print(timeslot)
-                for otherTeacher in self.teachers:
-                    #print(otherTeacher)
-                    if teacher != otherTeacher and otherTeacher.isAvailableAt(timeslot):
-                        timeslots.append(timeslot)
-                        teachers.append(otherTeacher)
-                        #print(timeslots)
-                        #print(teachers)
-                        break
-                timeslots = []
-                if len(timeslots) == 4:
-                    for timeslot in timeslots:
-                        classroom = teacher.getClassroomAt(timeslot)
-                        removePlacement(teacher, classroom, timeslot)
-                        onBreak(teacher, timeslot)
-                        self.createPlacement(otherTeacher, classroom, timeslot)
+                breakTimeslots = findBreakTimeslots(breakTimeslots, coveringTeachers, timeslot, teacher)
+                if len(breakTimeslots) == 4:
                     break
             
+            for breakTimeslot, coveringTeacher in zip(breakTimeslots, coveringTeachers):
+                classroom = teacher.getClassroomAt(breakTimeslot)
+                if classroom is not None:
+                    removePlacement(teacher, classroom, breakTimeslot)
+                    self.createPlacement(coveringTeacher, classroom, breakTimeslot)
+                onBreak(teacher, breakTimeslot)
+                
+            
+        
                     
     
 class Placement:
@@ -97,6 +117,11 @@ class Placement:
     def __repr__(self):
         return self.teacher.name + " in " + self.location.name + " at " + str(self.timeslot)
 
+    def __eq__(self, other):
+        if isinstance(other, Placement):
+            return self.teacher == other.teacher and \
+                   self.location == other.location and \
+                   self.timeslot == other.timeslot
 
 class Teacher:
     def __init__(self, name):
@@ -105,6 +130,9 @@ class Teacher:
 
     def assign(self, location, timeslot):
         self.placements[timeslot] = location
+
+    def unassign(self, location, timeslot):
+        self.placements[timeslot] = None
 
     def fullyBooked(self):
         return all(x != None for x in self.placements)
@@ -138,6 +166,12 @@ class Location:
     def __eq__(self, other):
         if isinstance(other, Location):
             return self.name == other.name
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return self.name
     
 class Classroom(Location):
     def __init__(self, name):
@@ -146,6 +180,9 @@ class Classroom(Location):
    
     def staff(self, teacher, timeslot):
         self.placements[timeslot].append(teacher)
+
+    def unstaff(self, teacher, timeslot):
+        self.placements[timeslot] = [t for t in self.placements[timeslot] if t != teacher]
 
     def isFullyStaffed(self):
         return all(len(placement) == 2 for placement in self.placements)
