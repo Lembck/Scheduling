@@ -8,7 +8,8 @@ class School:
         self.solve()
 
     def logScores(self):
-        self.scores.append(sum(classroom.percentageStaffed() for classroom in self.classrooms))
+        self.scores.append(sum(classroom.percentageStaffed() for classroom in self.classrooms) + \
+                           sum(teacher.hasBreak() for teacher in self.teachers))
 
     def solved(self):
         return all(classroom.isFullyStaffed() for classroom in self.classrooms) and all(teacher.hasBreak() for teacher in self.teachers)
@@ -102,8 +103,16 @@ class School:
                 onBreak(teacher, breakTimeslot)
                 
             
-        
-                    
+class Class:
+    def __init__(self, leadTeachers=[], students=[], classroom=None):
+        self.leadTeachers = leadTeachers
+        self.students = students
+        self.classroom = classroom
+
+class Student:
+    def __init__(self, name, age):
+        self.name = name
+        self.age = age            
     
 class Placement:
     def __init__(self, teacher, location, timeslot):
@@ -141,6 +150,12 @@ class Teacher:
         return self.placements[timeslot] == None
 
     def hasBreak(self):
+        breakTimes = ([time for time, location in enumerate(self.placements) if location == Location("Break")])
+        if breakTimes:
+            breakStart = min(breakTimes)
+            if [b - breakStart for b in breakTimes] == list(range(4)):
+                return True
+        return False
         return list(filter(lambda location: location == Location("Break"), self.placements))
 
     def getClassroomAt(self, timeslot):
@@ -177,6 +192,7 @@ class Classroom(Location):
     def __init__(self, name):
         super().__init__(name)
         self.placements = [[] for i in range(30)] #7:30am - 3:00pm
+        self.squareFootage = None
    
     def staff(self, teacher, timeslot):
         self.placements[timeslot].append(teacher)
