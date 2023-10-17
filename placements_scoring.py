@@ -1,75 +1,101 @@
 class School:
-    def __init__(self, teachers, classrooms):
+    def __init__(self, teachers, locations):
         self.teachers = teachers
-        self.classrooms = classrooms
+        self.locations = locations
+        self.classrooms = [location for location in locations if location.isClassroom()]
         self.placements = []
         self.scores = []
-        self.unsolvable = False
         self.solve()
 
     def logScores(self):
-        self.scores.append(sum(classroom.percentageStaffed() for classroom in classrooms))
+        self.scores.append(sum(classroom.percentageStaffed() for classroom in self.classrooms))
 
-    def unsolved(self):
-        return not all(classroom.isFullyStaffed() for classroom in self.classrooms)
+    def solved(self):
+        return all(classroom.isFullyStaffed() for classroom in self.classrooms) and all(teacher.hasBreak() for teacher in self.teachers)
 
     def solve(self):
-        while self.unsolved() and not self.unsolvable:
+        while not self.solved():
             if not all(classroom.isFullyStaffed() for classroom in self.classrooms):
                 if all(teacher.fullyBooked() for teacher in self.teachers):
-                    print("here")
+                    print("Not enough people")
                     break
-                #else:
-                    #print(teachers[0].placements)
+                print("staffing classrooms")
                 self.staffClassrooms()
-            #if not all(teacher.hasBreak() for teacher in self.teachers):
-            #    self.breakTeachers()
+                self.staffClassrooms()
+                print(list(zip(self.placements, self.scores)))
+            if not all(teacher.hasBreak() for teacher in self.teachers):
+                print("breaking teachers")
+                self.breakTeachers()
 
-        print(list(zip(self.placements, self.scores)))
+        #print(list(zip(self.placements, self.scores)))
+
+    def createPlacement(self, teacher, location, timeslot):
+        self.placements.append(Placement(teacher, location, timeslot))
+        teacher.assign(location, timeslot)
+        if location.isClassroom():
+            location.staff(teacher, timeslot)
+        self.logScores()
 
     def staffClassrooms(self):
-        #print("staffing")
-        def createPlacement(teacher, classroom, timeslot):
-            #print("creating placement")
-            self.placements.append(Placement(teacher, classroom, timeslot))
-            teacher.assign(classroom, timeslot)
-            classroom.staff(teacher, timeslot)
-            self.logScores()
-
         for classroom in self.classrooms:
             if classroom.isFullyStaffed():
-                print("class is fully staffed")
                 continue
             for timeslot, t in enumerate(classroom.placements):
                 if classroom.isFullyStaffedAt(timeslot):
-                    print("timeslot full " + str(timeslot))
                     continue
-                #print(self.teachers)
                 for teacher in self.teachers:
-                    #print(teacher)
                     if teacher.isAvailableAt(timeslot):
-                        createPlacement(teacher, classroom, timeslot)
+                        self.createPlacement(teacher, classroom, timeslot)
                         break
 
-    #def breakTeachers(self):
-    #    for teacher in self.teachers:
-     #       if teacher.hasBreak():
-     #           continue
-     #       #find four placements in a row when someone is available, all in the same classroom
-     #       for timeslot in range(30):
-                
+    def breakTeachers(self):
+        print("Breaking teachers")
+        def removePlacement(teacher, location, timeslot):
+            toBeRemoved = Placement(teacher, location, timeslot)
+            print("a", len(self.placements))
+            self.placements = [p for p in self.placements if p != toBeRemoved]
+            print("b", len(self.placements))
 
+        def onBreak(teacher, timeslot):
+            self.createPlacement(teacher, Location("Break"), timeslot)
+        
+        for teacher in self.teachers:
+            if teacher.hasBreak():
+                continue
+            timeslots = []
+            teachers = []
+            for timeslot in range(30):
+                print(timeslot)
+                for otherTeacher in self.teachers:
+                    #print(otherTeacher)
+                    if teacher != otherTeacher and otherTeacher.isAvailableAt(timeslot):
+                        timeslots.append(timeslot)
+                        teachers.append(otherTeacher)
+                        #print(timeslots)
+                        #print(teachers)
+                        break
+                timeslots = []
+                if len(timeslots) == 4:
+                    for timeslot in timeslots:
+                        classroom = teacher.getClassroomAt(timeslot)
+                        removePlacement(teacher, classroom, timeslot)
+                        onBreak(teacher, timeslot)
+                        self.createPlacement(otherTeacher, classroom, timeslot)
+                    break
+            
+                    
+    
 class Placement:
-    def __init__(self, teacher, classroom, timeslot):
+    def __init__(self, teacher, location, timeslot):
         self.teacher = teacher
-        self.classroom = classroom
+        self.location = location
         self.timeslot = timeslot
 
     def __str__(self):
-        return self.teacher.name + " in " + self.classroom.name + " at " + str(self.timeslot)
+        return self.teacher.name + " in " + self.location.name + " at " + str(self.timeslot)
 
     def __repr__(self):
-        return self.teacher.name + " in " + self.classroom.name + " at " + str(self.timeslot)
+        return self.teacher.name + " in " + self.location.name + " at " + str(self.timeslot)
 
 
 class Teacher:
@@ -77,8 +103,8 @@ class Teacher:
         self.name = name
         self.placements = [None] * 30
 
-    def assign(self, classroom, timeslot):
-        self.placements[timeslot] = classroom
+    def assign(self, location, timeslot):
+        self.placements[timeslot] = location
 
     def fullyBooked(self):
         return all(x != None for x in self.placements)
@@ -87,7 +113,10 @@ class Teacher:
         return self.placements[timeslot] == None
 
     def hasBreak(self):
-        return list(filter(lambda slot: slot == "Break", self.placements))
+        return list(filter(lambda location: location == Location("Break"), self.placements))
+
+    def getClassroomAt(self, timeslot):
+        return self.placements[timeslot]
 
     def __str__(self):
         return self.name
@@ -95,9 +124,24 @@ class Teacher:
     def __repr__(self):
         return self.name
 
-class Classroom:
+    def __eq__(self, other):
+        if isinstance(other, Teacher):
+            return self.name == other.name
+        
+class Location:
     def __init__(self, name):
         self.name = name
+
+    def isClassroom(self):
+        return False
+
+    def __eq__(self, other):
+        if isinstance(other, Location):
+            return self.name == other.name
+    
+class Classroom(Location):
+    def __init__(self, name):
+        super().__init__(name)
         self.placements = [[] for i in range(30)] #7:30am - 3:00pm
    
     def staff(self, teacher, timeslot):
@@ -112,6 +156,9 @@ class Classroom:
     def percentageStaffed(self):
         return sum(map(lambda x: len(x), self.placements)) / 60
 
+    def isClassroom(self):
+        return True
+
 teachers = [Teacher("Alison"), Teacher("Judy"), Teacher("Kristin"), Teacher("Molly"), Teacher("John")]
-classrooms = [Classroom("Pre-K"), Classroom("K")]
-school = School(teachers, classrooms)
+locations = [Classroom("Pre-K"), Classroom("K")]
+school = School(teachers, locations)
