@@ -49,92 +49,21 @@ class StaffingRequirement(Requirement):
         staffClassrooms()
         staffClassrooms()
 
-class School:
-    def __init__(self, teachers, locations):
-        self.teachers = teachers
-        self.locations = locations
-        self.classrooms = [location for location in locations if location.isClassroom()]
-        self.placements = []
-        self.scores = []
-        self.requirements = [StaffingRequirement(self.teachers, self.classrooms, self.placements, self.scores)]
-        self.solve()
-        
-    def setUpRequirements(self):
-        allClassroomsStaffed = Requirement("All Classrooms Staffed")
-
-    def R1Condition(self):
-        return all(classroom.isFullyStaffed() for classroom in self.classrooms)
-    def R1Descriptor(self):
-        for classroom in self.classrooms:
-            if not classroom.isFullyStaffed():
-                print(classroom, "is not fully staffed:", classroom.percentageStaffed()*100, "%")
-    def R1Solver(self):
-        self.staffClassrooms()
-        self.staffClassrooms()
-
-    def R2Condition(self):
+class BreakRequirement(Requirement):
+    def condition(self):
         return all(teacher.hasBreak() for teacher in self.teachers)
 
-    def R2Descriptor(self):
+    def descriptor(self):
         print(", ".join(str(t) for t in self.teachers if not t.hasBreak()), "don't have breaks")
 
-    def R2Solver(self):
-        self.breakTeachers()
-
-    def logScores(self):
-        self.scores.append(sum(classroom.percentageStaffed() for classroom in self.classrooms) + \
-                           sum(teacher.hasBreak() for teacher in self.teachers))
-
-    def solved(self):
-        return all(classroom.isFullyStaffed() for classroom in self.classrooms) and all(teacher.hasBreak() for teacher in self.teachers)
-
-    def solve(self):
-        while not self.solved():
-            if not self.requirements[0].condition():
-                self.requirements[0].descriptor()
-                self.requirements[0].solver()
-                
-            if not self.R2Condition():
-                self.R2Descriptor()
-                self.R2Solver()
-                
-            else:
-                print("All teachers have breaks")
-
-        print("Solved")
-        print(self.placements)
-        print(max(self.scores))
-
-    def createPlacement(self, teacher, location, timeslot):
-        self.placements.append(Placement(teacher, location, timeslot))
-        teacher.assign(location, timeslot)
-        if location.isClassroom():
-            location.staff(teacher, timeslot)
-        self.logScores()
-
-    def staffClassrooms(self):
-        for classroom in self.classrooms:
-            if classroom.isFullyStaffed():
-                continue
-            for timeslot, t in enumerate(classroom.placements):
-                if classroom.isFullyStaffedAt(timeslot):
-                    continue
-                for teacher in self.teachers:
-                    if teacher.isAvailableAt(timeslot):
-                        self.createPlacement(teacher, classroom, timeslot)
-                        break
-
-    def breakTeachers(self):
-        print("Breaking teachers")
+    def solver(self):
         def removePlacement(teacher, location, timeslot):
-            #print("removing", teacher, "from", location, "at", timeslot)
             toBeRemoved = Placement(teacher, location, timeslot)
             if toBeRemoved in self.placements:
                 self.placements = [p for p in self.placements if p != toBeRemoved]
                 teacher.unassign(location, timeslot)
                 if location.isClassroom():
                     location.unstaff(teacher, timeslot)
-                #print("removed", teacher, "from", location, "at", timeslot)
 
         def onBreak(teacher, timeslot):
             self.createPlacement(teacher, Location("Break"), timeslot)
@@ -142,16 +71,13 @@ class School:
         def findBreakTimeslots(timeslots, teachers, timeslot, teacher):
             for otherTeacher in self.teachers:
                 if otherTeacher.isAvailableAt(timeslot):
-                    #print(otherTeacher, "can cover at", timeslot)
                     timeslots.append(timeslot)
                     teachers.append(otherTeacher)
                     return timeslots
             return []
         
         for teacher in self.teachers:
-            #print("Trying to find a break for", teacher)
             if teacher.hasBreak():
-                #print(teacher, "already had a break")
                 continue
             breakTimeslots = []
             coveringTeachers = []
@@ -166,7 +92,37 @@ class School:
                     removePlacement(teacher, classroom, breakTimeslot)
                     self.createPlacement(coveringTeacher, classroom, breakTimeslot)
                 onBreak(teacher, breakTimeslot)
+
+class School:
+    def __init__(self, teachers, locations):
+        self.teachers = teachers
+        self.locations = locations
+        self.classrooms = [location for location in locations if location.isClassroom()]
+        self.placements = []
+        self.scores = []
+        self.requirements = [StaffingRequirement(self.teachers, self.classrooms, self.placements, self.scores),
+                             BreakRequirement(self.teachers, self.classrooms, self.placements, self.scores),]
+        self.solve()
+        
+    def setUpRequirements(self):
+        allClassroomsStaffed = Requirement("All Classrooms Staffed")
+
+    def solved(self):
+        return all(classroom.isFullyStaffed() for classroom in self.classrooms) and all(teacher.hasBreak() for teacher in self.teachers)
+
+    def solve(self):
+        while not self.solved():
+            for requirement in self.requirements:
+                if not requirement.condition():
+                    requirement.descriptor()
+                    requirement.solver()
                 
+            else:
+                print("All teachers have breaks")
+
+        print("Solved")
+        print(self.placements)
+        print(max(self.scores))                
             
 class Class:
     def __init__(self, leadTeachers=[], students=[], classroom=None):
