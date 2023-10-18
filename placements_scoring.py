@@ -1,3 +1,54 @@
+class Requirement:
+    def __init__(self, teachers, classrooms, placements, scores):
+        self.teachers = teachers
+        self.classrooms = classrooms
+        self.placements = placements
+        self.scores = scores
+        
+    def condition(self):
+        return False
+
+    def descriptor(self):
+        return
+
+    def solver(self):
+        return
+
+    def logScores(self):
+        self.scores.append(sum(classroom.percentageStaffed() for classroom in self.classrooms) + \
+                           sum(teacher.hasBreak() for teacher in self.teachers))
+
+    def createPlacement(self, teacher, location, timeslot):
+        self.placements.append(Placement(teacher, location, timeslot))
+        teacher.assign(location, timeslot)
+        if location.isClassroom():
+            location.staff(teacher, timeslot)
+        self.logScores()
+
+class StaffingRequirement(Requirement):
+    def condition(self):
+        return all(classroom.isFullyStaffed() for classroom in self.classrooms)
+
+    def descriptor(self):
+        for classroom in self.classrooms:
+            if not classroom.isFullyStaffed():
+                print(classroom, "is not fully staffed:", classroom.percentageStaffed()*100, "%")
+
+    def solver(self):
+        def staffClassrooms():
+            for classroom in self.classrooms:
+                if classroom.isFullyStaffed():
+                    continue
+                for timeslot, t in enumerate(classroom.placements):
+                    if classroom.isFullyStaffedAt(timeslot):
+                        continue
+                    for teacher in self.teachers:
+                        if teacher.isAvailableAt(timeslot):
+                            self.createPlacement(teacher, classroom, timeslot)
+                            break
+        staffClassrooms()
+        staffClassrooms()
+
 class School:
     def __init__(self, teachers, locations):
         self.teachers = teachers
@@ -5,7 +56,30 @@ class School:
         self.classrooms = [location for location in locations if location.isClassroom()]
         self.placements = []
         self.scores = []
+        self.requirements = [StaffingRequirement(self.teachers, self.classrooms, self.placements, self.scores)]
         self.solve()
+        
+    def setUpRequirements(self):
+        allClassroomsStaffed = Requirement("All Classrooms Staffed")
+
+    def R1Condition(self):
+        return all(classroom.isFullyStaffed() for classroom in self.classrooms)
+    def R1Descriptor(self):
+        for classroom in self.classrooms:
+            if not classroom.isFullyStaffed():
+                print(classroom, "is not fully staffed:", classroom.percentageStaffed()*100, "%")
+    def R1Solver(self):
+        self.staffClassrooms()
+        self.staffClassrooms()
+
+    def R2Condition(self):
+        return all(teacher.hasBreak() for teacher in self.teachers)
+
+    def R2Descriptor(self):
+        print(", ".join(str(t) for t in self.teachers if not t.hasBreak()), "don't have breaks")
+
+    def R2Solver(self):
+        self.breakTeachers()
 
     def logScores(self):
         self.scores.append(sum(classroom.percentageStaffed() for classroom in self.classrooms) + \
@@ -16,23 +90,14 @@ class School:
 
     def solve(self):
         while not self.solved():
-            if not all(classroom.isFullyStaffed() for classroom in self.classrooms):
-                print("Staffing Classrooms")
-                if all(teacher.fullyBooked() for teacher in self.teachers):
-                    print("Not enough people")
-                    break
+            if not self.requirements[0].condition():
+                self.requirements[0].descriptor()
+                self.requirements[0].solver()
                 
-                for c in self.classrooms:
-                    if not c.isFullyStaffed():
-                        print(c, "is not fully staffed:", c.percentageStaffed()*100, "%")
-                        
-                self.staffClassrooms()
-                self.staffClassrooms()
+            if not self.R2Condition():
+                self.R2Descriptor()
+                self.R2Solver()
                 
-            if not all(teacher.hasBreak() for teacher in self.teachers):
-                print("breaking teachers")
-                print(", ".join(str(t) for t in self.teachers if not t.hasBreak()), "don't have breaks")
-                self.breakTeachers()
             else:
                 print("All teachers have breaks")
 
