@@ -1,5 +1,14 @@
+teachers = [Teacher("Alison"), Teacher("Judy"), Teacher("Kristin"), Teacher("Molly"), Teacher("John")]
+locations = [Classroom("Pre-K"), Classroom("K")]
+#classrooms = [location for location in locations if location.isClassroom()]
+#placements = []
+#scores = []
+
+
+
 class Requirement:
-    def __init__(self, teachers, classrooms, placements, scores):
+    def __init__(self, name, teachers, classrooms, placements, scores):
+        self.name = name
         self.teachers = teachers
         self.classrooms = classrooms
         self.placements = placements
@@ -19,11 +28,44 @@ class Requirement:
                            sum(teacher.hasBreak() for teacher in self.teachers))
 
     def createPlacement(self, teacher, location, timeslot):
+        #print("teacher", teacher, "location", location, "time", timeslot)
         self.placements.append(Placement(teacher, location, timeslot))
         teacher.assign(location, timeslot)
         if location.isClassroom():
             location.staff(teacher, timeslot)
         self.logScores()
+
+    def groupPlacements(self):
+        def ranges(l):
+            ranges = []
+            for x in l:
+                x = str(x)
+                if not ranges:
+                    ranges.append([x])
+                elif int(x)-prev_x == 1:
+                    ranges[-1].append(x)
+                else:
+                    ranges.append([x])
+                prev_x = int(x)
+            return ["-".join([r[0], r[-1]] if len(r) > 1 else r) for r in ranges]
+        placementsByTeacher = {}
+        placementsByTeacherClass = {}
+        for placement in self.placements:
+            if placement.teacher in placementsByTeacher:
+                placementsByTeacher[placement.teacher].append(placement)
+            else:
+                placementsByTeacher[placement.teacher] = [placement]
+                placementsByTeacherClass[placement.teacher] = {}
+        for teacher in placementsByTeacher.keys():
+            for placement in placementsByTeacher[teacher]:
+                if placement.location in placementsByTeacherClass[teacher]:
+                    placementsByTeacherClass[teacher][placement.location].append(placement.timeslot)
+                else:
+                    placementsByTeacherClass[teacher][placement.location] = [placement.timeslot]
+        for teacher in placementsByTeacher.keys():
+            for location in placementsByTeacherClass[teacher]:
+                placementsByTeacherClass[teacher][location] = ranges(placementsByTeacherClass[teacher][location])
+        print(placementsByTeacherClass)
 
 class StaffingRequirement(Requirement):
     def condition(self):
@@ -67,6 +109,7 @@ class BreakRequirement(Requirement):
 
         def onBreak(teacher, timeslot):
             self.createPlacement(teacher, Location("Break"), timeslot)
+            #print(teacher, timeslot)
 
         def findBreakTimeslots(timeslots, teachers, timeslot, teacher):
             for otherTeacher in self.teachers:
@@ -93,19 +136,30 @@ class BreakRequirement(Requirement):
                     self.createPlacement(coveringTeacher, classroom, breakTimeslot)
                 onBreak(teacher, breakTimeslot)
 
+        self.groupPlacements()
+
+##class LeadTeacherRequirement(Requirement):
+##    def condition(self):
+##        return all(class.lead
+##
+##    def descriptor(self):
+##        return
+##
+##    def solver(self):
+##        return
+
 class School:
     def __init__(self, teachers, locations):
         self.teachers = teachers
         self.locations = locations
-        self.classrooms = [location for location in locations if location.isClassroom()]
-        self.placements = []
-        self.scores = []
-        self.requirements = [StaffingRequirement(self.teachers, self.classrooms, self.placements, self.scores),
-                             BreakRequirement(self.teachers, self.classrooms, self.placements, self.scores),]
+                
+        self.setUpRequirements()
         self.solve()
         
     def setUpRequirements(self):
-        allClassroomsStaffed = Requirement("All Classrooms Staffed")
+        self.requirements = [StaffingRequirement("S", self.teachers, self.classrooms, self.placements, self.scores),
+                             BreakRequirement("B", self.teachers, self.classrooms, self.placements, self.scores)]
+        
 
     def solved(self):
         return all(classroom.isFullyStaffed() for classroom in self.classrooms) and all(teacher.hasBreak() for teacher in self.teachers)
@@ -116,13 +170,43 @@ class School:
                 if not requirement.condition():
                     requirement.descriptor()
                     requirement.solver()
-                
-            else:
-                print("All teachers have breaks")
+                    
 
         print("Solved")
-        print(self.placements)
-        print(max(self.scores))                
+        self.groupPlacements()
+        print(max(self.scores))
+
+    def groupPlacements(self):
+        def ranges(l):
+            ranges = []
+            for x in l:
+                x = str(x)
+                if not ranges:
+                    ranges.append([x])
+                elif int(x)-prev_x == 1:
+                    ranges[-1].append(x)
+                else:
+                    ranges.append([x])
+                prev_x = int(x)
+            return ["-".join([r[0], r[-1]] if len(r) > 1 else r) for r in ranges]
+        placementsByTeacher = {}
+        placementsByTeacherClass = {}
+        for placement in self.placements:
+            if placement.teacher in placementsByTeacher:
+                placementsByTeacher[placement.teacher].append(placement)
+            else:
+                placementsByTeacher[placement.teacher] = [placement]
+                placementsByTeacherClass[placement.teacher] = {}
+        for teacher in placementsByTeacher.keys():
+            for placement in placementsByTeacher[teacher]:
+                if placement.location in placementsByTeacherClass[teacher]:
+                    placementsByTeacherClass[teacher][placement.location].append(placement.timeslot)
+                else:
+                    placementsByTeacherClass[teacher][placement.location] = [placement.timeslot]
+        for teacher in placementsByTeacher.keys():
+            for location in placementsByTeacherClass[teacher]:
+                placementsByTeacherClass[teacher][location] = ranges(placementsByTeacherClass[teacher][location])
+        print(placementsByTeacherClass)
             
 class Class:
     def __init__(self, leadTeachers=[], students=[], classroom=None):
@@ -191,6 +275,9 @@ class Teacher:
     def __eq__(self, other):
         if isinstance(other, Teacher):
             return self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
         
 class Location:
     def __init__(self, name):
@@ -208,6 +295,9 @@ class Location:
 
     def __repr__(self):
         return self.name
+
+    def __hash__(self):
+        return hash(self.name)
     
 class Classroom(Location):
     def __init__(self, name):
@@ -233,6 +323,8 @@ class Classroom(Location):
     def isClassroom(self):
         return True
 
-teachers = [Teacher("Alison"), Teacher("Judy"), Teacher("Kristin"), Teacher("Molly"), Teacher("John")]
-locations = [Classroom("Pre-K"), Classroom("K")]
+    def __hash__(self):
+        return hash(self.name)
+
+
 school = School(teachers, locations)
