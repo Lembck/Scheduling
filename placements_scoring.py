@@ -1,11 +1,3 @@
-teachers = [Teacher("Alison"), Teacher("Judy"), Teacher("Kristin"), Teacher("Molly"), Teacher("John")]
-locations = [Classroom("Pre-K"), Classroom("K")]
-#classrooms = [location for location in locations if location.isClassroom()]
-#placements = []
-#scores = []
-
-
-
 class Requirement:
     def __init__(self, name, teachers, classrooms, placements, scores):
         self.name = name
@@ -36,6 +28,17 @@ class Requirement:
         self.logScores()
 
     def groupPlacements(self):
+        def convert(x):
+            mid = 15 * x + 450
+            h = mid // 60
+            m = mid % 60
+            AMPM = "am" if h < 12 else "pm"
+            h = h % 12
+            if m == 0:
+                m = "00"
+            if h == 0:
+                h = 12
+            return str(h) + ":" + str(m) + AMPM
         def ranges(l):
             ranges = []
             for x in l:
@@ -47,7 +50,7 @@ class Requirement:
                 else:
                     ranges.append([x])
                 prev_x = int(x)
-            return ["-".join([r[0], r[-1]] if len(r) > 1 else r) for r in ranges]
+            return ["-".join([convert(int(r[0])), convert(int(r[-1])+1)] if len(r) > 1 else convert(r)) for r in ranges]
         placementsByTeacher = {}
         placementsByTeacherClass = {}
         for placement in self.placements:
@@ -102,7 +105,7 @@ class BreakRequirement(Requirement):
         def removePlacement(teacher, location, timeslot):
             toBeRemoved = Placement(teacher, location, timeslot)
             if toBeRemoved in self.placements:
-                self.placements = [p for p in self.placements if p != toBeRemoved]
+                self.placements.remove(toBeRemoved)# = [p for p in self.placements if p != toBeRemoved]
                 teacher.unassign(location, timeslot)
                 if location.isClassroom():
                     location.unstaff(teacher, timeslot)
@@ -152,7 +155,9 @@ class School:
     def __init__(self, teachers, locations):
         self.teachers = teachers
         self.locations = locations
-                
+        self.classrooms = [location for location in self.locations if location.isClassroom()]
+        self.placements = []
+        self.scores = []
         self.setUpRequirements()
         self.solve()
         
@@ -326,5 +331,6 @@ class Classroom(Location):
     def __hash__(self):
         return hash(self.name)
 
-
+teachers = [Teacher("Alison"), Teacher("Judy"), Teacher("Kristin"), Teacher("Molly"), Teacher("John")]
+locations = [Classroom("Pre-K"), Classroom("K")]
 school = School(teachers, locations)
